@@ -68,5 +68,7 @@ export const HelloWorldExtension: Extension = {
             title: 'Hello Extension',
             order: 100
         });
+
+        console.log('Hello World Extension activated!');
     }
 };

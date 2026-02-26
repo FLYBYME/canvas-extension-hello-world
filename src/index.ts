@@ -1,74 +1,172 @@
 import { Extension, ExtensionContext } from 'canvas-ide-core';
 import { ViewProvider } from 'canvas-ide-core';
 
-export const HelloWorldExtension: Extension = {
-    id: 'my.helloworld',
-    name: 'Hello World',
-    version: '1.0.0',
+export default class KitchenSinkExtension implements Extension {
+    public id = 'kitchen-sink';
+    public name = 'Kitchen Sink Extension';
+    public version = '1.0.0';
 
-    activate(context: ExtensionContext) {
-        // 1. Register a command
-        const commandDisposable = context.ide.commands.registerDisposable({
-            id: 'extension.helloWorld',
-            label: 'Say Hello',
-            handler: () => {
-                context.ide.notifications.notify('Hello from the Extension System!', 'info');
+    public async activate(context: ExtensionContext): Promise<void> {
+        const ide = context.ide;
+
+        // 1. Register Configuration Settings
+        context.registerConfiguration({
+            id: 'kitchensink',
+            title: 'Kitchen Sink Settings',
+            properties: {
+                'kitchensink.showToasts': {
+                    type: 'boolean',
+                    default: true,
+                    description: 'Show toasts when events occur.'
+                },
+                'kitchensink.themeColor': {
+                    type: 'enum',
+                    default: 'blue',
+                    enum: ['blue', 'purple', 'green'],
+                    description: 'Favorite color for the Kitchen Sink UI.'
+                }
             }
         });
-        context.subscriptions.push(commandDisposable);
 
-        // 2. Add a Menu Item
-        context.ide.layout.header.menuBar.addMenuItem({
-            id: 'ext-menu',
-            label: 'My Extension',
-            items: [
-                {
-                    id: 'ext-menu:hello',
-                    label: 'Say Hello World',
-                    onClick: () => context.ide.commands.execute('extension.helloWorld')
-                }
-            ]
-        });
+        // 2. Register Commands
+        const helloWorldCmd = {
+            id: 'kitchensink.helloWorld',
+            label: 'Kitchen Sink: Hello World',
+            keybinding: 'Ctrl+Shift+H',
+            handler: () => {
+                ide.notifications.notify({
+                    message: 'Hello from the Kitchen Sink!',
+                    severity: 'success',
+                    source: { id: this.id, label: this.name },
+                    timeout: 3000
+                });
+            }
+        };
+        ide.commands.register(helloWorldCmd);
+        context.subscriptions.push({ dispose: () => ide.commands.unregister(helloWorldCmd.id) });
 
-        // 3. Register a UI Provider
-        const myProvider: ViewProvider = {
-            id: 'my.helloworld.sidebarView',
-            name: 'Hello Sidebar',
-            resolveView: (container: HTMLElement, disposables: any[]) => {
-                container.innerHTML = `
-                    <div style="padding: 15px; display: flex; flex-direction: column; gap: 10px; color: var(--text-main); font-family: var(--font-ui);">
-                        <h2 style="font-size: 14px; margin: 0; text-transform: uppercase;">Hello World Extension</h2>
-                        <p style="font-size: 13px; color: var(--text-muted);">This is a custom UI provided by an extension using the new ViewProvider API!</p>
-                        <button id="ext-btn" style="background: var(--accent); color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-family: var(--font-ui);">
-                            Click Me
-                        </button>
-                    </div>
-                `;
+        const interactiveCmd = {
+            id: 'kitchensink.interactive',
+            label: 'Kitchen Sink: Interactive Dialogs',
+            handler: async () => {
+                // Quick Pick Example
+                const choice = await ide.dialogs.showQuickPick([
+                    { id: 'apple', label: 'Apple', icon: 'fas fa-apple-alt' },
+                    { id: 'banana', label: 'Banana', icon: 'fas fa-lemon' } // Close enough icon!
+                ], { placeholder: 'Pick a fruit...' });
 
-                // Add event listener to the button
-                const btn = container.querySelector('#ext-btn');
-                if (btn) {
-                    btn.addEventListener('click', () => {
-                        context.ide.commands.execute('extension.helloWorld');
-                    });
+                if (!choice) return;
+
+                // Prompt Example
+                const name = await ide.dialogs.prompt(`You picked ${choice.label}. What is your name?`, {
+                    title: 'Name Entry',
+                    placeholder: 'Enter your name'
+                });
+
+                if (!name) return;
+
+                // Confirm Example
+                const isConfirmed = await ide.dialogs.confirm(`Ready to submit your choice, ${name}?`, {
+                    title: 'Final Confirmation',
+                    primaryLabel: 'Submit',
+                    isDestructive: false
+                });
+
+                if (isConfirmed) {
+                    ide.notifications.notify(`Submission complete for ${name}.`, 'success');
                 }
             }
         };
+        ide.commands.register(interactiveCmd);
+        context.subscriptions.push({ dispose: () => ide.commands.unregister(interactiveCmd.id) });
 
-        // Register the provider with the IDE
-        context.ide.views.registerProvider('left-panel', myProvider);
+        const editorDemoCmd = {
+            id: 'kitchensink.openVirtualFile',
+            label: 'Kitchen Sink: Open Virtual File',
+            handler: () => {
+                // Write a virtual file using the VFS and open it
+                const vfsPath = '/kitchen-sink-demo.ts';
+                const content = `// Generated by Kitchen Sink\n\nexport function test() {\n    console.log("Virtual file active!");\n}\n`;
 
-        // Do not auto-render immediately; let FileTree be default
+                ide.vfs.writeFile(vfsPath, content).then(() => {
+                    ide.editor.openFile(vfsPath, 'kitchen-sink-demo.ts', content, 'typescript');
+                }).catch(err => {
+                    ide.notifications.notify(`Failed to write file: ${err.message}`, 'error');
+                });
+            }
+        };
+        ide.commands.register(editorDemoCmd);
+        context.subscriptions.push({ dispose: () => ide.commands.unregister(editorDemoCmd.id) });
 
-        // 4. Add an Activity Bar Icon to trigger the view
-        context.ide.activityBar.registerItem({
-            id: myProvider.id,
-            location: 'left-panel',
-            icon: 'fas fa-plug',
-            title: 'Hello Extension',
-            order: 100
+
+        // 3. Register a Custom View (Right Panel)
+        const customView: ViewProvider = {
+            id: 'kitchensink.sidebarView',
+            name: 'Kitchen Sink View',
+            resolveView: (container, disposables) => {
+                // Create UI
+                container.innerHTML = `
+                    <div style="padding: 16px; color: var(--text-main); display: flex; flex-direction: column; gap: 12px;">
+                        <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; color: var(--text-muted);">Kitchen Sink Dashboard</h3>
+                        <p style="font-size: 12px;">This is a custom panel contributed by the extension.</p>
+                        <button id="ks-btn-toast" class="dialog-btn dialog-btn-primary">Trigger Toast</button>
+                        <button id="ks-btn-dialog" class="dialog-btn dialog-btn-secondary">Show Dialog Flow</button>
+                    </div>
+                `;
+
+                // Wire up events
+                const btnToast = container.querySelector('#ks-btn-toast') as HTMLElement;
+                const btnDialog = container.querySelector('#ks-btn-dialog') as HTMLElement;
+
+                const onToastClick = () => ide.commands.execute('kitchensink.helloWorld');
+                const onDialogClick = () => ide.commands.execute('kitchensink.interactive');
+
+                btnToast?.addEventListener('click', onToastClick);
+                btnDialog?.addEventListener('click', onDialogClick);
+
+                // Clean up listeners when view unmounts
+                disposables.push({ dispose: () => btnToast?.removeEventListener('click', onToastClick) });
+                disposables.push({ dispose: () => btnDialog?.removeEventListener('click', onDialogClick) });
+            }
+        };
+        ide.views.registerProvider('right-panel', customView);
+        context.subscriptions.push({ dispose: () => ide.views.unregisterProvider('right-panel', customView.id) });
+
+        // 4. Add Activity Bar Icon to toggle the view
+        ide.activityBar.registerItem({
+            id: customView.id, // Must match the ViewProvider ID
+            location: 'right-panel',
+            icon: 'fas fa-sink',
+            title: 'Kitchen Sink',
+            order: 999
         });
+        context.subscriptions.push({ dispose: () => ide.activityBar.unregisterItem(customView.id) });
 
-        console.log('Hello World Extension activated!');
+        // 5. Add to the Top Menu Bar
+        ide.layout.header.menuBar.addMenuItem({
+            id: 'kitchensink-menu',
+            label: 'Kitchen Sink',
+            items: [
+                { id: 'ks-menu-1', label: 'Hello World', shortcut: 'Ctrl+Shift+H', onClick: () => ide.commands.execute('kitchensink.helloWorld') },
+                { id: 'ks-menu-2', label: 'Interactive Flow', onClick: () => ide.commands.execute('kitchensink.interactive') },
+                { id: 'ks-menu-3', label: 'Generate Virtual File', onClick: () => ide.commands.execute('kitchensink.openVirtualFile') },
+            ]
+        });
+        // Note: The provided MenuBar API currently doesn't expose a 'removeMenuItem' method.
+
+        // 6. Global Event Listening
+        const subId = ide.commands.on('editor.tab.opened', (data: { tabId: string }) => {
+            // Check the configuration registry before reacting
+            if (ide.settings.get('kitchensink.showToasts')) {
+                ide.notifications.setStatusMessage(`Opened: ${data.tabId}`, 2000);
+            }
+        });
+        context.subscriptions.push({ dispose: () => ide.commands.off(subId) });
+
+        ide.notifications.notify(`Kitchen Sink initialized!`, 'info', 3000);
     }
-};
+
+    public deactivate(): void {
+        console.log(`Kitchen Sink deactivated. Resources are cleaned up via context.subscriptions.`);
+    }
+}

@@ -1,12 +1,11 @@
-import { Extension, ExtensionContext } from 'canvas-ide-core';
-import { ViewProvider } from 'canvas-ide-core';
+import { Extension, ExtensionContext, ViewProvider } from 'canvas-ide-core';
 
-export default class KitchenSinkExtension implements Extension {
-    public id = 'kitchen-sink';
-    public name = 'Kitchen Sink Extension';
-    public version = '1.0.0';
+export const KitchenSinkExtension: Extension = {
+    id: 'kitchen-sink',
+    name: 'Kitchen Sink Extension',
+    version: '1.0.0',
 
-    public async activate(context: ExtensionContext): Promise<void> {
+    activate: async (context: ExtensionContext): Promise<void> => {
         const ide = context.ide;
 
         // 1. Register Configuration Settings
@@ -37,7 +36,7 @@ export default class KitchenSinkExtension implements Extension {
                 ide.notifications.notify({
                     message: 'Hello from the Kitchen Sink!',
                     severity: 'success',
-                    source: { id: this.id, label: this.name },
+                    source: { id: KitchenSinkExtension.id, label: KitchenSinkExtension.name },
                     timeout: 3000
                 });
             }
@@ -164,9 +163,9 @@ export default class KitchenSinkExtension implements Extension {
         context.subscriptions.push({ dispose: () => ide.commands.off(subId) });
 
         ide.notifications.notify(`Kitchen Sink initialized!`, 'info', 3000);
-    }
+    },
 
-    public deactivate(): void {
+    deactivate(): void {
         console.log(`Kitchen Sink deactivated. Resources are cleaned up via context.subscriptions.`);
     }
 }
